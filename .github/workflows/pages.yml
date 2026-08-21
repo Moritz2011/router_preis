@@ -1,0 +1,62 @@
+name: Preis-Dashboard veröffentlichen
+
+on:
+  # Der tägliche Crawler pusht mit GITHUB_TOKEN. Solche Bot-Commits lösen
+  # keinen normalen push-Workflow aus, deshalb reagieren wir auf workflow_run.
+  workflow_run:
+    workflows:
+      - "FRITZ!Box Preis-Crawler"
+    types:
+      - completed
+
+  # Die erste Einrichtung sowie spätere Workflow-Änderungen veröffentlichen
+  # ebenfalls direkt.
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pages.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: GitHub Pages einrichten
+        uses: actions/configure-pages@v5
+
+      - name: Website vorbereiten
+        run: |
+          mkdir _site
+          cp index.html _site/index.html
+
+      - name: Website hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Website veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4

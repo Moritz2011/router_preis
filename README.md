@@ -7,6 +7,10 @@ ist, dienen die strukturierten Produktdaten der HTML-Seite als Fallback. Der
 Crawler speichert pro Tag einen Messwert in `price_data.json` und erzeugt daraus
 das statische Dashboard `index.html`.
 
+Das automatisch aktualisierte Dashboard ist unter
+[moritz2011.github.io/router_preis](https://moritz2011.github.io/router_preis/)
+erreichbar.
+
 ## Lokal ausführen
 
 ```bash
@@ -37,11 +41,11 @@ Danach läuft `.github/workflows/price-crawler.yml` täglich um 08:15 Uhr in der
 Zeitzone `Europe/Berlin`. GitHub kann geplante Workflows bei hoher Auslastung
 etwas verzögert starten.
 
-## Optional: Dashboard über GitHub Pages veröffentlichen
+## Dashboard über GitHub Pages
 
-Unter **Settings → Pages** bei **Source** die Option **Deploy from a branch**
-wählen, anschließend den Standard-Branch und den Ordner `/ (root)` auswählen.
-Nach dem Deployment ist `index.html` als kleine Preisübersicht erreichbar.
+`.github/workflows/pages.yml` veröffentlicht `index.html` automatisch über
+GitHub Pages. Nach jedem erfolgreichen täglichen Crawler-Lauf wird auch die
+Website mit den neuen Daten aktualisiert.
 
 ## Datenformat
 
