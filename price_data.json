@@ -1,0 +1,17 @@
+{
+  "product": {
+    "name": "FRITZ!Box 5530 Fiber",
+    "sku": "20002960",
+    "url": "https://fritz.com/products/fritz-box-5530-fiber-20002960",
+    "currency": "EUR"
+  },
+  "observations": [
+    {
+      "date": "2026-08-21",
+      "timestamp": "2026-08-21T17:23:38+02:00",
+      "price": 169.99,
+      "compare_at_price": 185.99,
+      "available": true
+    }
+  ]
+}

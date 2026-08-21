@@ -1,0 +1,51 @@
+name: FRITZ!Box Preis-Crawler
+
+on:
+  schedule:
+    # Täglich um 08:15 Uhr deutscher Zeit, inklusive Sommer-/Winterzeit.
+    - cron: "15 8 * * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fritz-price-crawler
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r requirements.txt
+
+      - name: Tests ausführen
+        run: python -m unittest discover -s tests -v
+
+      - name: Preis abrufen
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUNBUFFERED: "1"
+        run: python crawler.py
+
+      - name: Ergebnis speichern
+        run: |
+          git config user.name "FRITZ-Preis-Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add price_data.json index.html
+          git diff --staged --quiet && exit 0
+          git commit -m "Preisupdate $(date -u +'%Y-%m-%d')"
+          git push

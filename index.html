@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Täglicher Preisverlauf für die FRITZ!Box 5530 Fiber">
+  <title>FRITZ!Box 5530 Fiber – Preisverlauf</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      color: #07142d; background: #f1f6fa; }
+    header { padding: 42px 22px 84px; color: white;
+      background: linear-gradient(135deg, #001e6e 0%, #0089d1 75%, #00beff 100%); }
+    header div, main { width: min(920px, 100%); margin: auto; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 3rem); }
+    header p { margin: 10px 0 0; opacity: .8; }
+    main { padding: 0 20px 40px; margin-top: -48px; }
+    .card { background: white; border-radius: 18px; padding: 26px;
+      box-shadow: 0 15px 40px rgba(0, 30, 110, .12); }
+    .summary { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 24px; }
+    .label { color: #5f6d76; font-size: .83rem; font-weight: 650; letter-spacing: .02em; }
+    .price { margin-top: 5px; font-size: clamp(2.4rem, 7vw, 4rem); font-weight: 800; line-height: 1; }
+    .compare { display: block; margin-top: 8px; color: #5f6d76; text-decoration: line-through; }
+    .metric { margin-top: 8px; font-size: 1.4rem; font-weight: 750; }
+    .trend { display: inline-block; margin-top: 14px; padding: 7px 10px; border-radius: 8px;
+      font-size: .85rem; font-weight: 700; }
+    .down { color: #08783e; background: #e4f8ed; }
+    .up { color: #b42318; background: #ffebe9; }
+    .neutral { color: #40516c; background: #edf2f7; }
+    .status { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; font-weight: 700; }
+    .status::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+    .available { color: #08783e; } .unavailable { color: #b42318; }
+    .chart-card { margin-top: 20px; }
+    .chart-card h2 { margin: 0 0 22px; font-size: 1.1rem; }
+    .chart-wrap { height: 310px; }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      margin-top: 20px; color: #5f6d76; font-size: .82rem; }
+    a.button { color: #001e6e; background: #00beff; padding: 11px 16px; border-radius: 9px;
+      text-decoration: none; font-weight: 750; white-space: nowrap; }
+    @media (max-width: 680px) { .summary { grid-template-columns: 1fr 1fr; }
+      .current { grid-column: 1 / -1; } .actions { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <header><div><h1>FRITZ!Box 5530 Fiber</h1><p>Automatisch erfasster Preisverlauf · SKU 20002960</p></div></header>
+  <main>
+    <section class="card summary">
+      <div class="current">
+        <div class="label">AKTUELLER PREIS</div>
+        <div class="price">169,99 €</div>
+        <span class="compare">statt 185,99 €</span>
+        <div class="trend neutral">Erste Messung</div>
+        <div class="status available">Verfügbar</div>
+      </div>
+      <div><div class="label">TIEFSTPREIS</div><div class="metric">169,99 €</div></div>
+      <div><div class="label">HÖCHSTPREIS</div><div class="metric">169,99 €</div></div>
+    </section>
+    <section class="card chart-card">
+      <h2>Preisverlauf</h2>
+      <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+    </section>
+    <div class="actions">
+      <span>Zuletzt geprüft: 21.08.2026 um 17:23 Uhr · Preise ohne Gewähr</span>
+      <a class="button" href="https://fritz.com/products/fritz-box-5530-fiber-20002960" target="_blank" rel="noopener">Bei FRITZ! ansehen</a>
+    </div>
+  </main>
+  <script>
+    new Chart(document.getElementById('price-chart'), {
+      type: 'line',
+      data: { labels: ["2026-08-21"], datasets: [{ data: [169.99], borderColor: '#0089d1',
+        backgroundColor: 'rgba(0, 190, 255, .12)', fill: true, tension: .25,
+        pointRadius: 4, pointBackgroundColor: '#001e6e' }] },
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+        interaction: { intersect: false, mode: 'index' },
+        scales: { y: { ticks: { callback: value => value.toLocaleString('de-DE',
+          { style: 'currency', currency: 'EUR' }) } } } }
+    });
+  </script>
+</body>
+</html>
