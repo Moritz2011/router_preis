@@ -1,6 +1,17 @@
 name: FRITZ!Box Preis-Crawler
 
 on:
+  # Bei Änderungen am Crawler ebenfalls testen. Generierte Dateien sind bewusst
+  # ausgeschlossen, damit der Bot-Commit keinen weiteren Lauf startet.
+  push:
+    branches:
+      - main
+    paths:
+      - "crawler.py"
+      - "requirements.txt"
+      - "tests/**"
+      - ".github/workflows/price-crawler.yml"
+
   schedule:
     # Täglich um 08:15 Uhr deutscher Zeit, inklusive Sommer-/Winterzeit.
     - cron: "15 8 * * *"
