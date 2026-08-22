@@ -50,7 +50,7 @@
         <div class="label">AKTUELLER PREIS</div>
         <div class="price">169,99 €</div>
         <span class="compare">statt 185,99 €</span>
-        <div class="trend neutral">Erste Messung</div>
+        <div class="trend neutral">→ Unverändert seit der letzten Messung</div>
         <div class="status available">Verfügbar</div>
       </div>
       <div><div class="label">TIEFSTPREIS</div><div class="metric">169,99 €</div></div>
@@ -61,14 +61,14 @@
       <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
     </section>
     <div class="actions">
-      <span>Zuletzt geprüft: 21.08.2026 um 17:31 Uhr · Preise ohne Gewähr</span>
+      <span>Zuletzt geprüft: 22.08.2026 um 09:01 Uhr · Preise ohne Gewähr</span>
       <a class="button" href="https://fritz.com/products/fritz-box-5530-fiber-20002960" target="_blank" rel="noopener">Bei FRITZ! ansehen</a>
     </div>
   </main>
   <script>
     new Chart(document.getElementById('price-chart'), {
       type: 'line',
-      data: { labels: ["2026-08-21"], datasets: [{ data: [169.99], borderColor: '#0089d1',
+      data: { labels: ["2026-08-21", "2026-08-22"], datasets: [{ data: [169.99, 169.99], borderColor: '#0089d1',
         backgroundColor: 'rgba(0, 190, 255, .12)', fill: true, tension: .25,
         pointRadius: 4, pointBackgroundColor: '#001e6e' }] },
       options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
