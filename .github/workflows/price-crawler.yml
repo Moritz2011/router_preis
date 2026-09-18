@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - "crawler.py"
+      - "publish_prices.py"
       - "requirements.txt"
       - "tests/**"
       - ".github/workflows/price-crawler.yml"
@@ -33,6 +34,9 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
+        with:
+          # Ein erneut gestarteter Lauf darf nicht den alten Ereignis-Commit nutzen.
+          ref: main
 
       - name: Python einrichten
         uses: actions/setup-python@v5
@@ -56,7 +60,4 @@ jobs:
         run: |
           git config user.name "FRITZ-Preis-Bot"
           git config user.email "bot@users.noreply.github.com"
-          git add price_data.json index.html
-          git diff --staged --quiet && exit 0
-          git commit -m "Preisupdate $(date -u +'%Y-%m-%d')"
-          git push
+          python publish_prices.py

@@ -41,6 +41,13 @@ Danach läuft `.github/workflows/price-crawler.yml` täglich um 08:15 Uhr in der
 Zeitzone `Europe/Berlin`. GitHub kann geplante Workflows bei hoher Auslastung
 etwas verzögert starten.
 
+Auch bei wiederholten Läufen wird der aktuelle Stand von `main` ausgecheckt.
+Beim Speichern führt `publish_prices.py` die neue Messung mit dem neuesten
+Remote-Preisverlauf zusammen. Pro Tag bleibt die zeitlich neueste Messung
+erhalten; das Dashboard wird daraus neu erzeugt. Bei konkurrierenden Commits
+wird der normale Push bis zu dreimal versucht. Andere Änderungen und ältere
+Tagesmesswerte bleiben dabei erhalten. Es wird kein Force-Push verwendet.
+
 ## Dashboard über GitHub Pages
 
 `.github/workflows/pages.yml` veröffentlicht `index.html` automatisch über
