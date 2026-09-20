@@ -215,6 +215,13 @@
       "price": 186.99,
       "compare_at_price": null,
       "available": false
+    },
+    {
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T13:29:32+02:00",
+      "price": 186.99,
+      "compare_at_price": null,
+      "available": false
     }
   ]
 }
