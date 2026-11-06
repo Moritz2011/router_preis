@@ -1,11 +1,16 @@
-# FRITZ!Box 5530 Fiber – Preis-Crawler
+# FRITZ!Box 5630 – Preis-Crawler mit 5530-Archiv
 
 Der Crawler liest täglich den aktuellen Preis der
-[FRITZ!Box 5530 Fiber](https://fritz.com/products/fritz-box-5530-fiber-20002960)
+[FRITZ!Box 5630](https://fritz.com/products/fritz-box-5630-20003150)
 aus dem öffentlichen Shopify-Produktendpunkt aus. Falls dieser nicht nutzbar
 ist, dienen die strukturierten Produktdaten der HTML-Seite als Fallback. Der
 Crawler speichert pro Tag einen Messwert in `price_data.json` und erzeugt daraus
 das statische Dashboard `index.html`.
+
+Die FRITZ!Box 5530 Fiber wird nicht mehr abgefragt. Ihre bisherigen Messwerte
+bleiben unverändert als abgeschlossenes Archiv auf derselben Seite sichtbar:
+letzter Preis und Lieferstatus, Tiefst-/Höchstpreis, Diagramm und alle
+Tagesmessungen. Der Verlauf der 5630 startet separat mit der ersten neuen Messung.
 
 Das automatisch aktualisierte Dashboard ist unter
 [moritz2011.github.io/router_preis](https://moritz2011.github.io/router_preis/)
@@ -56,7 +61,16 @@ Website mit den neuen Daten aktualisiert.
 
 ## Datenformat
 
-`price_data.json` behält die täglichen Messwerte. Mehrere Läufe am selben Tag
-ersetzen nur den Messwert dieses Tages. Schlägt der Abruf fehl oder liefert der
-Shop nicht mehr die erwartete SKU `20002960`, beendet sich der Crawler mit einem
-Fehler und vorhandene Daten bleiben unverändert.
+`price_data.json` enthält unter `product` und `observations` das aktive Modell
+(5630, SKU `20003150`). Unter `archives` liegen abgeschlossene Modelle mit
+ihren eigenen Produktinformationen und Messwerten. Das bisherige Datenformat
+der 5530 (SKU `20002960`) wird beim ersten erfolgreichen neuen Lauf automatisch
+und ohne weitere Shop-Abfrage ins Archiv übernommen.
+
+Mehrere Läufe am selben Tag ersetzen nur den Messwert des aktiven Modells für
+diesen Tag. Schlägt der Abruf fehl oder liefert der Shop nicht die erwartete
+SKU `20003150`, bleiben die vorhandenen Dateien unverändert. Die Archivdaten
+werden bei der Veröffentlichung auch nach konkurrierenden Pushes beibehalten.
+Bei einem Shop-Anfragelimit (HTTP 429) wartet der Crawler einmal entsprechend
+`Retry-After`, höchstens 60 Sekunden. Längere oder anhaltende Limits beenden den
+Lauf ohne weitere Fallback-Anfrage und ohne Änderungen an den gespeicherten Daten.

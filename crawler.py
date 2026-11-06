@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Track the daily price of the FRITZ!Box 5530 Fiber."""
+"""Track the FRITZ!Box 5630 and retain the retired 5530 Fiber's history."""
 
 from __future__ import annotations
 
 import html
 import json
 import sys
-from datetime import datetime
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -15,9 +17,11 @@ from zoneinfo import ZoneInfo
 import requests
 
 
-PRODUCT_URL = "https://fritz.com/products/fritz-box-5530-fiber-20002960"
+PRODUCT_NAME = "FRITZ!Box 5630"
+PRODUCT_URL = "https://fritz.com/products/fritz-box-5630-20003150"
 PRODUCT_JSON_URL = f"{PRODUCT_URL}.js"
-EXPECTED_SKU = "20002960"
+EXPECTED_SKU = "20003150"
+RETIRED_SKU = "20002960"
 CURRENCY = "EUR"
 TIMEZONE = ZoneInfo("Europe/Berlin")
 
@@ -37,6 +41,10 @@ HEADERS = {
 
 class ProductDataError(RuntimeError):
     """Raised when the shop response does not contain the expected product."""
+
+
+class ShopRateLimitError(ProductDataError):
+    """A shop rate limit must not trigger immediate fallback requests."""
 
 
 class JsonLdParser(HTMLParser):
@@ -96,7 +104,7 @@ def parse_product(payload: dict[str, Any]) -> dict[str, Any]:
     numeric_compare_prices = [price for price in compare_prices if price is not None]
 
     return {
-        "name": str(payload.get("title") or "FRITZ!Box 5530 Fiber"),
+        "name": str(payload.get("title") or PRODUCT_NAME),
         "sku": EXPECTED_SKU,
         "price": min(numeric_prices),
         "compare_at_price": (
@@ -167,7 +175,7 @@ def parse_product_html(document: str) -> dict[str, Any]:
                 raise ProductDataError(f"Unerwartete Waehrung im HTML: {currencies}")
 
             return {
-                "name": str(candidate.get("name") or "FRITZ!Box 5530 Fiber"),
+                "name": str(candidate.get("name") or PRODUCT_NAME),
                 "sku": EXPECTED_SKU,
                 "price": min(prices),
                 "compare_at_price": None,
@@ -177,15 +185,36 @@ def parse_product_html(document: str) -> dict[str, Any]:
     raise ProductDataError("Keine passenden strukturierten Produktdaten im HTML gefunden.")
 
 
+def get_shop_response(client: requests.Session, url: str) -> requests.Response:
+    """Honor HTTP 429 once, waiting at most 60 seconds as requested by the shop."""
+    for attempt in range(2):
+        response = client.get(url, headers=HEADERS, timeout=(10, 30))
+        if response.status_code != 429:
+            return response
+        retry_after = response.headers.get("Retry-After", "60")
+        try:
+            delay = max(1, int(retry_after))
+        except ValueError:
+            try:
+                until = parsedate_to_datetime(retry_after)
+                delay = max(1, int((until - datetime.now(timezone.utc)).total_seconds()) + 1)
+            except (ValueError, TypeError, OverflowError):
+                delay = 60
+        if attempt == 1 or delay > 60:
+            raise ShopRateLimitError(
+                f"Der Shop begrenzt Anfragen (HTTP 429, Retry-After: {retry_after}). "
+                "Vorhandene Messwerte bleiben erhalten."
+            )
+        print(f"Shop-Anfragelimit erreicht; warte {delay} Sekunden vor einem erneuten Versuch.", flush=True)
+        time.sleep(delay)
+    raise ShopRateLimitError("Der Shop begrenzt Anfragen weiterhin.")
+
+
 def fetch_product(session: requests.Session | None = None) -> dict[str, Any]:
     """Fetch product JSON, falling back to schema.org data in the HTML page."""
     client = session or requests.Session()
     try:
-        response = client.get(
-            PRODUCT_JSON_URL,
-            headers=HEADERS,
-            timeout=(10, 30),
-        )
+        response = get_shop_response(client, PRODUCT_JSON_URL)
         response.raise_for_status()
         try:
             payload = response.json()
@@ -194,41 +223,72 @@ def fetch_product(session: requests.Session | None = None) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ProductDataError("Unerwartetes Format der Produktantwort.")
         return parse_product(payload)
+    except ShopRateLimitError:
+        raise
     except (requests.RequestException, ProductDataError) as primary_error:
         print(
             f"Hinweis: Shopify-JSON nicht nutzbar ({primary_error}); nutze HTML-Fallback.",
             file=sys.stderr,
         )
 
-    response = client.get(PRODUCT_URL, headers=HEADERS, timeout=(10, 30))
+    response = get_shop_response(client, PRODUCT_URL)
     response.raise_for_status()
     return parse_product_html(response.text)
 
 
+def new_history() -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "product": {
+            "name": PRODUCT_NAME,
+            "sku": EXPECTED_SKU,
+            "url": PRODUCT_URL,
+            "currency": CURRENCY,
+        },
+        "observations": [],
+        "archives": [],
+    }
+
+
+def prepare_history(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate the old single-model file once, preserving its original records."""
+    if not isinstance(data, dict) or not isinstance(data.get("observations"), list):
+        raise ProductDataError("Die Preishistorie hat ein ungueltiges Format.")
+    sku = data.get("product", {}).get("sku")
+    archives = data.get("archives", [])
+    if not isinstance(archives, list):
+        raise ProductDataError("Das Preisarchiv hat ein ungueltiges Format.")
+    if sku == EXPECTED_SKU:
+        return {**data, "schema_version": 2, "archives": archives}
+    if sku != RETIRED_SKU:
+        raise ProductDataError(f"Unerwartete Produkt-SKU in der Historie: {sku}")
+    if any(item.get("product", {}).get("sku") == RETIRED_SKU for item in archives):
+        raise ProductDataError("Die 5530-Historie ist mehrfach vorhanden.")
+
+    archived = {key: value for key, value in data.items() if key != "archives"}
+    archived["archive_reason"] = "Dieses Modell wird nicht mehr angeboten. Das Tracking ist beendet."
+    result = new_history()
+    result["archives"] = [*archives, archived]
+    return result
+
+
 def load_history(path: Path = DATA_FILE) -> dict[str, Any]:
-    """Load existing history or initialize a new data structure."""
+    """Load history and migrate the retired model in memory; never fetch it."""
     if not path.exists():
-        return {
-            "product": {
-                "name": "FRITZ!Box 5530 Fiber",
-                "sku": EXPECTED_SKU,
-                "url": PRODUCT_URL,
-                "currency": CURRENCY,
-            },
-            "observations": [],
-        }
+        return new_history()
 
     with path.open(encoding="utf-8") as file:
         data = json.load(file)
-    if not isinstance(data, dict) or not isinstance(data.get("observations"), list):
-        raise ProductDataError(f"{path.name} hat ein ungueltiges Format.")
-    return data
+    return prepare_history(data)
 
 
 def update_history(
     history: dict[str, Any], product: dict[str, Any], timestamp: datetime
 ) -> dict[str, Any]:
     """Add or replace today's observation and keep entries sorted."""
+    history = prepare_history(history)
+    if product["sku"] != EXPECTED_SKU:
+        raise ProductDataError("Die Messung gehoert nicht zum aktiven Produkt.")
     day = timestamp.date().isoformat()
     observation = {
         "date": day,
@@ -260,8 +320,66 @@ def format_eur(value: float | None) -> str:
     return f"{value:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def render_archive(history: dict[str, Any], index: int) -> tuple[str, dict[str, Any] | None]:
+    """Render an archived model using only its frozen observations."""
+    product = history["product"]
+    title = html.escape(product["name"])
+    reason = html.escape(history.get("archive_reason", "Das Tracking dieses Modells ist beendet."))
+    observations = history["observations"]
+    heading = f'<h3>{title}</h3><span class="archive-badge">Historie · Tracking beendet</span>'
+    if not observations:
+        return f'<article class="card archived-card">{heading}<p>{reason}</p></article>', None
+
+    current = observations[-1]
+    prices = [float(item["price"]) for item in observations]
+    first_date = datetime.fromisoformat(observations[0]["timestamp"]).strftime("%d.%m.%Y")
+    updated = datetime.fromisoformat(current["timestamp"]).strftime("%d.%m.%Y um %H:%M Uhr")
+    last_status = "Verfügbar" if current["available"] else "Nicht verfügbar"
+    chart_id = f"archive-chart-{index}"
+    rows = "".join(
+        f'<tr><th scope="row">{datetime.fromisoformat(item["timestamp"]).strftime("%d.%m.%Y")}</th>'
+        f'<td>{format_eur(item["price"])}</td>'
+        f'<td>{"Verfügbar" if item["available"] else "Nicht verfügbar"}</td></tr>'
+        for item in reversed(observations)
+    )
+    markup = f"""
+      <article class="card archived-card">
+        <div class="model-heading">{heading}</div>
+        <p class="archive-note">{reason} Die bisherigen Daten bleiben hier erhalten.</p>
+        <div class="summary">
+          <div class="current">
+            <div class="label">ZULETZT ERFASSTER PREIS</div>
+            <div class="price archive-price">{format_eur(current['price'])}</div>
+            <p class="last-status">Letzter Lieferstatus: {last_status}</p>
+          </div>
+          <div><div class="label">TIEFSTPREIS IM VERLAUF</div><div class="metric">{format_eur(min(prices))}</div></div>
+          <div><div class="label">HÖCHSTPREIS IM VERLAUF</div><div class="metric">{format_eur(max(prices))}</div></div>
+        </div>
+        <h4>Abgeschlossener Preisverlauf</h4>
+        <div class="chart-wrap"><canvas id="{chart_id}" role="img" aria-label="Historischer Preisverlauf {title}"></canvas></div>
+        <details class="history-details">
+          <summary>Alle {len(observations)} Tagesmessungen ansehen</summary>
+          <div class="table-scroll"><table>
+            <thead><tr><th scope="col">Datum</th><th scope="col">Preis</th><th scope="col">Lieferstatus damals</th></tr></thead>
+            <tbody>{rows}</tbody>
+          </table></div>
+        </details>
+        <div class="actions">
+          <span>Erfasst seit {first_date} · Letzte Messung: {updated}</span>
+          <a href="{html.escape(product['url'], quote=True)}" target="_blank" rel="noopener">Ehemalige Produktseite</a>
+        </div>
+      </article>"""
+    chart = {
+        "id": chart_id,
+        "labels": [item["date"] for item in observations],
+        "values": prices,
+        "archived": True,
+    }
+    return markup, chart
+
+
 def generate_dashboard(history: dict[str, Any], path: Path = DASHBOARD_FILE) -> None:
-    """Generate a static dashboard suitable for GitHub Pages."""
+    """Show the active model followed by the preserved, separate model archives."""
     observations = history["observations"]
     if not observations:
         raise ProductDataError("Ohne Preisdaten kann kein Dashboard erzeugt werden.")
@@ -290,8 +408,23 @@ def generate_dashboard(history: dict[str, Any], path: Path = DASHBOARD_FILE) -> 
 
     product = history["product"]
     title = html.escape(product["name"])
-    labels = json.dumps([item["date"] for item in observations], ensure_ascii=False)
-    values = json.dumps(prices)
+    charts = [{
+        "id": "price-chart",
+        "labels": [item["date"] for item in observations],
+        "values": prices,
+        "archived": False,
+    }]
+    archive_markup = []
+    for index, archive in enumerate(history.get("archives", [])):
+        markup, chart = render_archive(archive, index)
+        archive_markup.append(markup)
+        if chart is not None:
+            charts.append(chart)
+    archive_html = (
+        '<section id="history" class="archive-area"><h2>Abgeschlossene Preisverläufe</h2>'
+        + "".join(archive_markup) + '</section>' if archive_markup else ""
+    )
+    navigation = '<nav><a href="#active-model">Aktuelles Modell</a><a href="#history">Modell-Historie</a></nav>' if archive_markup else ""
     status = "Verfügbar" if current["available"] else "Derzeit nicht verfügbar"
     status_class = "available" if current["available"] else "unavailable"
     updated = datetime.fromisoformat(current["timestamp"]).strftime("%d.%m.%Y um %H:%M Uhr")
@@ -342,14 +475,36 @@ def generate_dashboard(history: dict[str, Any], path: Path = DASHBOARD_FILE) -> 
       margin-top: 20px; color: #5f6d76; font-size: .82rem; }}
     a.button {{ color: #001e6e; background: #00beff; padding: 11px 16px; border-radius: 9px;
       text-decoration: none; font-weight: 750; white-space: nowrap; }}
+    nav {{ display: flex; gap: 20px; margin-top: 22px; }}
+    nav a {{ color: white; text-underline-offset: 5px; font-size: .9rem; }}
+    a:focus-visible, summary:focus-visible {{ outline: 3px solid #0089d1; outline-offset: 5px; }}
+    nav a:focus-visible {{ outline-color: white; }}
+    .archive-area {{ margin-top: 52px; padding-top: 26px; border-top: 1px solid #cbd5e1; }}
+    .archive-area > h2 {{ margin: 0 0 20px; font-size: 1.4rem; }}
+    .archived-card {{ margin-top: 20px; box-shadow: 0 5px 20px rgba(0, 30, 110, .06); }}
+    .model-heading {{ display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }}
+    .model-heading h3 {{ margin: 0; font-size: 1.4rem; }}
+    .archive-badge {{ color: #40516c; background: #edf2f7; padding: 6px 10px; border-radius: 7px; font-size: .8rem; }}
+    .archive-note, .last-status {{ color: #5f6d76; font-size: .9rem; line-height: 1.6; }}
+    .archive-note {{ margin-bottom: 24px; }}
+    .archive-price {{ font-size: 2.4rem; }}
+    .archived-card h4 {{ margin: 28px 0 20px; font-size: 1rem; }}
+    .history-details {{ margin-top: 20px; }}
+    summary {{ cursor: pointer; color: #001e6e; font-weight: 650; padding: 10px 0; }}
+    .table-scroll {{ overflow-x: auto; margin-top: 12px; }}
+    table {{ border-collapse: collapse; width: 100%; min-width: 380px; font-size: .85rem; }}
+    th, td {{ padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }}
+    thead {{ background: #f1f6fa; }}
+    tbody th {{ font-weight: 500; }}
+    .actions a:not(.button) {{ color: #40516c; text-underline-offset: 3px; }}
     @media (max-width: 680px) {{ .summary {{ grid-template-columns: 1fr 1fr; }}
       .current {{ grid-column: 1 / -1; }} .actions {{ align-items: flex-start; flex-direction: column; }} }}
   </style>
 </head>
 <body>
-  <header><div><h1>{title}</h1><p>Automatisch erfasster Preisverlauf · SKU {EXPECTED_SKU}</p></div></header>
+  <header><div><h1>{title}</h1><p>Tägliches Tracking aktiv · Artikelnummer {html.escape(product['sku'])}</p>{navigation}</div></header>
   <main>
-    <section class="card summary">
+    <section id="active-model" class="card summary">
       <div class="current">
         <div class="label">AKTUELLER PREIS</div>
         <div class="price">{format_eur(current['price'])}</div>
@@ -362,24 +517,29 @@ def generate_dashboard(history: dict[str, Any], path: Path = DASHBOARD_FILE) -> 
     </section>
     <section class="card chart-card">
       <h2>Preisverlauf</h2>
-      <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+      <div class="chart-wrap"><canvas id="price-chart" role="img" aria-label="Preisverlauf {title}"></canvas></div>
     </section>
     <div class="actions">
       <span>Zuletzt geprüft: {updated} · Preise ohne Gewähr</span>
-      <a class="button" href="{PRODUCT_URL}" target="_blank" rel="noopener">Bei FRITZ! ansehen</a>
+      <a class="button" href="{html.escape(product['url'], quote=True)}" target="_blank" rel="noopener">Bei FRITZ! ansehen</a>
     </div>
+    {archive_html}
   </main>
   <script>
-    new Chart(document.getElementById('price-chart'), {{
+    for (const chart of {json.dumps(charts, ensure_ascii=False)}) {{
+      new Chart(document.getElementById(chart.id), {{
       type: 'line',
-      data: {{ labels: {labels}, datasets: [{{ data: {values}, borderColor: '#0089d1',
-        backgroundColor: 'rgba(0, 190, 255, .12)', fill: true, tension: .25,
-        pointRadius: 4, pointBackgroundColor: '#001e6e' }}] }},
+      data: {{ labels: chart.labels, datasets: [{{ data: chart.values,
+        borderColor: chart.archived ? '#64748b' : '#0089d1',
+        backgroundColor: chart.archived ? 'rgba(100, 116, 139, .08)' : 'rgba(0, 190, 255, .12)',
+        fill: true, tension: .25, pointRadius: chart.values.length > 40 ? 2 : 4,
+        pointBackgroundColor: chart.archived ? '#64748b' : '#001e6e' }}] }},
       options: {{ maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }},
         interaction: {{ intersect: false, mode: 'index' }},
         scales: {{ y: {{ ticks: {{ callback: value => value.toLocaleString('de-DE',
           {{ style: 'currency', currency: 'EUR' }}) }} }} }} }}
-    }});
+      }});
+    }}
   </script>
 </body>
 </html>

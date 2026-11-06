@@ -112,6 +112,39 @@ class PublishTests(unittest.TestCase):
         self.assertEqual(self.git(self.remote, "rev-parse", "main"), before)
         self.assertEqual(self.remote_history()["observations"][-1]["price"], 160)
 
+    def test_first_5630_publication_migrates_latest_remote_5530_history(self):
+        # A late old-model update lands before the new tracker publishes.
+        legacy = deepcopy(self.history)
+        legacy.pop("archives")
+        legacy["product"] = {
+            "name": "FRITZ!Box 5530 Fiber", "sku": "20002960",
+            "url": "https://fritz.com/products/fritz-box-5530-fiber-20002960",
+            "currency": "EUR",
+        }
+        legacy["observations"].append(measurement("2026-09-17", price=190))
+        self.write_history(self.seed, legacy)
+        self.commit_and_push(self.seed)
+
+        publish_prices.publish(self.worker)
+        result = self.remote_history()
+        self.assertEqual(result["product"]["sku"], "20003150")
+        self.assertEqual(result["observations"], [measurement("2026-09-18")])
+        self.assertEqual(result["archives"][0]["observations"], legacy["observations"])
+        self.assertEqual(result["archives"][0]["product"], legacy["product"])
+        self.assertIn("Tracking beendet", self.git(self.remote, "show", "main:index.html"))
+
+    def test_concurrent_push_preserves_an_existing_archive(self):
+        archive = {
+            "product": {"name": "FRITZ!Box 5530 Fiber", "sku": "20002960",
+                        "url": "https://fritz.com/products/fritz-box-5530-fiber-20002960"},
+            "observations": [measurement("2026-09-15", price=190)],
+        }
+        self.history["archives"] = [archive]
+        self.write_history(self.seed, self.history)
+        self.commit_and_push(self.seed)
+        publish_prices.publish(self.worker)
+        self.assertEqual(self.remote_history()["archives"], [archive])
+
     def test_non_race_push_error_fails_without_retries(self):
         real_git = publish_prices.git
         pushes = []
