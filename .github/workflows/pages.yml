@@ -66,5 +66,3 @@ jobs:
         uses: actions/deploy-pages@v5
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
-          # Bei Verzögerungen im Pages-Dienst bis zu 15 Minuten warten.
-          timeout: 900000
