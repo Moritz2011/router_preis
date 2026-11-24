@@ -1,6 +1,6 @@
 # Projektübergabe: FRITZ!Box-Preistracking
 
-**Dokumentationsstand: 14. November 2026 · Zeitzone: Europe/Berlin**
+**Dokumentationsstand: 24. November 2026 · Zeitzone: Europe/Berlin**
 
 Diese Datei dient als anbieterunabhängige Wissensübergabe für Menschen und KI-Coding-Assistenten, beispielsweise Codex oder Google Antigravity. Sie verbindet überprüften Quellcode, Git-Historie, aktuelle GitHub-Betriebsdaten und den tatsächlich zugänglichen Gesprächsverlauf. Sie ist keine neue Produktspezifikation und keine Aufforderung, sämtliche erwähnten Wartungsmöglichkeiten sofort umzusetzen.
 
@@ -37,11 +37,11 @@ Zugänglich ist der in dieser Unterhaltung sichtbare Projektverlauf von der erst
 | Öffentliches Repository | [Moritz2011/router_preis](https://github.com/Moritz2011/router_preis) |
 | Website | [moritz2011.github.io/router_preis](https://moritz2011.github.io/router_preis/) |
 | Branch / Remote | Lokal `main`; `origin` verweist per SSH auf dieses Repository. |
-| Lokaler HEAD | `2e1258956aff8dca50010479e4f87ebe410e84b9` – `Preisupdate 2026-11-14` (synchronisiert per Fast-Forward-Merge) |
-| Online-HEAD, lesend geprüft | `2e1258956aff8dca50010479e4f87ebe410e84b9` – `Preisupdate 2026-11-14` |
-| Unterschied online zu lokal | Synchron; die 9 Bot-Commits vom 06.–14.11. wurden per Fast-Forward übernommen. |
-| Lokale aktive Historie | 9 Tagesmessungen vom 06.–14.11.2026. Letzte Messung: 14.11.2026, 15:12:03 Uhr MEZ, 239,99 EUR, verfügbar. |
-| Online aktive Historie | 9 Tagesmessungen vom 06.–14.11.2026. Letzte Messung: 14.11.2026, 15:12:03 Uhr MEZ, 239,99 EUR, verfügbar. |
+| Lokaler HEAD | `08fa6a2551f520cfd4e322cbf58d80e2f2179903` – `Preisupdate 2026-11-24` (synchronisiert per Fast-Forward-Merge vor dem Pages-Fix) |
+| Online-HEAD, lesend geprüft | `08fa6a2551f520cfd4e322cbf58d80e2f2179903` – `Preisupdate 2026-11-24` |
+| Unterschied online zu lokal | Synchron vor Commit des Pages-Workflow-Fixes. |
+| Lokale aktive Historie | 19 Tagesmessungen vom 06.–24.11.2026. Letzte Messung: 24.11.2026, 19:55:13 Uhr MEZ, 214,99 EUR (statt 254,99 EUR), verfügbar. |
+| Online aktive Historie | 19 Tagesmessungen vom 06.–24.11.2026. Letzte Messung: 24.11.2026, 19:55:13 Uhr MEZ, 214,99 EUR (statt 254,99 EUR), verfügbar. |
 | Archiv, lokal und online | 5530 Fiber: 77 Messungen vom 21.08.–05.11.2026; Produktdaten und sämtliche Messwerte bei der Übergabe auf Gleichheit geprüft. Tiefstpreis 169,99 EUR, Höchst-/letzter Preis 199,99 EUR; letzter Lieferstatus nicht verfügbar. |
 | Arbeitsverzeichnis vor Übergabe | Sauber; keine bestehenden uncommitteten Änderungen. `PROJECT_HANDOVER.md` existierte noch nicht. |
 | Offene GitHub-Issues | Die lesend abgefragte Liste offener Issues war leer. |
@@ -295,6 +295,8 @@ Die Seite verwendet Systemschriften, blau/cyanfarbenen Header, helle Karten und 
 | 06.11.2026 | `8b06395` – 5630 plus 5530-Archiv | Expliziter neuer Nutzerauftrag: altes Modell erhalten, nicht weiter abfragen; neue Produktquelle separat verfolgen. |
 | 06.11.2026 | `6351c5f` – erste neue Messung | Lokaler Basisstand dieser Übergabe nach erfolgreicher Migration und erfolgreichem Pages-Lauf. |
 | Bis 14.11.2026 | Weitere Bot-Commits online | Nur Messwerte und generiertes HTML fortgeschrieben, kein neuer Quellcode seit der Umstellung. |
+| 14.11.2026 | `362aa33` – `PROJECT_HANDOVER.md` | Zentrale Übergabe- und Wissensdokumentation ins Repository aufgenommen. |
+| 24.11.2026 | Pages-Workflow in `build` + `deploy` getrennt | `deploy-pages@v5` fand unmittelbar nach `upload-pages-artifact@v5` im selben Job das soeben hochgeladene Artefakt `github-pages-1` nicht (Eventual-Consistency-Race-Condition). Trennung in zwei Jobs (`needs: build`) plus Weitergabe des Artefaktnamens über Job-Output. |
 
 ### D.2 Gültige Entscheidungen und verworfene beziehungsweise korrigierte Ansätze
 
@@ -309,7 +311,8 @@ Die Seite verwendet Systemschriften, blau/cyanfarbenen Header, helle Karten und 
 | Eigener Pages-Workflow statt reinem Branch-Publishing | Bot-Commits mit `GITHUB_TOKEN` lösen keinen gewöhnlichen Push-Folgeworkflow aus. | `workflow_run` auf den erfolgreichen Crawler erhalten; dessen exakter Workflow-Name ist gekoppelt. |
 | Neuester Branch beim Checkout | Ein erneut gestarteter Lauf konnte auf einem alten Ereignis-Commit basieren. | `ref: main` nicht gedankenlos auf den ursprünglichen Event-SHA zurückstellen. |
 | Daten zusammenführen statt blind pushen / Force-Push | Der September-Konflikt darf keine Historie verlieren. | Publisher mit neuem Remote-Stand und normalen Pushes verwenden; neuere Messung gewinnt pro Tag. |
-| Jede Retry-Ausführung bekommt ein eigenes Artefakt | Ein erneuter Pages-Job fand zwei Artefakte namens `github-pages` im selben Workflow-Lauf. | Upload-`name` und Deploy-`artifact_name` müssen beide `github-pages-${{ github.run_attempt }}` bleiben. |
+| Jede Retry-Ausführung bekommt ein eigenes Artefakt | Ein erneuter Pages-Job fand zwei Artefakte namens `github-pages` im selben Workflow-Lauf. | `build` erzeugt `github-pages-${GITHUB_RUN_ATTEMPT}` und reicht den Namen als Job-Output (`needs.build.outputs.artifact_name`) an `deploy` weiter; so funktionieren sowohl „Re-run all jobs“ als auch „Re-run failed jobs“. |
+| Getrennte `build`- und `deploy`-Jobs im Pages-Workflow | Am 24.11.2026 schlug `deploy-pages@v5` innerhalb derselben Sekunde nach `upload-pages-artifact@v5` fehl, weil das Artefakt noch nicht über die GitHub-API sichtbar war. | `build` und `deploy` (`needs: build`) getrennt halten; entspricht dem offiziellen GitHub-Pages-Muster und vermeidet Upload-/Deploy-Race-Conditions. |
 | Aktuelle Pages-Actions auf Node 24 | Alte Actions erzeugten Node-20-Warnungen. Das war getrennt vom eigentlichen Pages-Timeout. | Pages nutzt Configure v6, Upload v5 und Deploy v5. Die Crawler-Actions wurden damals nicht mitmodernisiert. |
 | Pages verwendet festen Ubuntu-Runner | Wechsel des beweglichen `ubuntu-latest` sollte diesen Veröffentlichungsjob nicht überraschend beeinflussen. | `ubuntu-24.04` im Pages-Job; Crawler hat weiterhin `ubuntu-latest`. |
 | Kein 15-Minuten-Deploy-Timeout | Der konkrete Versuch wurde vom Dienst auf `600000` ms gekürzt. | Keine Behauptung, der 20-Minuten-Jobtimeout erhöhe das interne Deployment-Limit. Aktueller Workflow setzt keinen eigenen Deploy-Timeout. |
@@ -366,6 +369,8 @@ Es gibt keine vereinbarten Millisekunden-Ziele, Verfügbarkeits-SLAs oder Lastan
 **Mehrere gleichnamige Pages-Artefakte nach Retry – bestätigt und behoben.** Der erneute Job fand zwei Artefakte namens `github-pages` und verweigerte deshalb die Veröffentlichung. Lösung: versuchsabhängige Namen an Upload und Deploy. Nicht durch wiederholtes Anlegen identischer Artefakte erneut einführen.
 
 **15-Minuten-Deployment-Limit – fehlerhafte Zwischenlösung korrigiert.** Die neue Action meldete ausdrücklich, dass der angegebene Wert über dem erlaubten Maximum liege und auf 600000 ms gekürzt werde. Die wirkungslose Einstellung wurde in `9a383c5` entfernt. Der abschließende damalige Pages-Lauf war erfolgreich und ohne Warnungen. Das 20-Minuten-Joblimit im Workflow ist eine andere Grenze.
+
+**`No artifacts named "github-pages-1" were found`, 24.11.2026 – bestätigt und behoben.** Im [Pages-Lauf 45464693617](https://github.com/Moritz2011/router_preis/actions/runs/45464693617) war der Upload-Schritt erfolgreich (`18:55:32Z`) und das Artefakt `github-pages-1` (3976 Bytes, ID `14953262716`) anschließend auch regulär in der GitHub-API vorhanden. Da `actions/deploy-pages@v5` jedoch im selben Job noch innerhalb derselben Sekunde (`18:55:32Z`) startete, griff eine Eventual-Consistency-Race-Condition der GitHub-Artifacts-API (`Fetching artifact metadata failed`). Lösung: Pages-Workflow nach dem offiziellen GitHub-Muster in zwei Jobs (`build` und `deploy` mit `needs: build`) aufgeteilt und den versuchsabhängigen Artefaktnamen als Job-Output (`needs.build.outputs.artifact_name`) weitergereicht.
 
 ### F.2 Aktuell bestätigte Wartungspunkte
 
@@ -521,14 +526,14 @@ Datei: `.github/workflows/price-crawler.yml`; Workflow-Name exakt `FRITZ!Box Pre
 
 ### I.6 Pages-Workflow im Detail
 
-Datei: `.github/workflows/pages.yml`; Name `Preis-Dashboard veröffentlichen`; Job-ID `deploy`.
+Datei: `.github/workflows/pages.yml`; Name `Preis-Dashboard veröffentlichen`; Job-IDs `build` und `deploy` (`needs: build`).
 
-- Start über `workflow_run` bei Abschluss des exakt benannten Crawler-Workflows; bei dessen Fehler wird `deploy` übersprungen.
+- Start über `workflow_run` bei Abschluss des exakt benannten Crawler-Workflows; bei dessen Fehler wird `build` (und damit auch `deploy`) übersprungen.
 - Eigene Push-Auslösung nur für Änderungen an `.github/workflows/pages.yml` auf `main`; zusätzlich manuell startbar.
-- Runner `ubuntu-24.04`, Job-Timeout zwanzig Minuten, Umgebung `github-pages`.
-- Checkout `actions/checkout@v6` auf aktuellem `main`; Konfiguration `actions/configure-pages@v6`.
-- Erzeugt `_site/` und kopiert **ausschließlich `index.html`** hinein. Weder Quellcode noch `price_data.json` oder diese Übergabe werden dadurch als Pages-Dateien ausgeliefert. Sie sind jedoch als Repository-Dateien öffentlich, wenn eingecheckt.
-- `actions/upload-pages-artifact@v5` und `actions/deploy-pages@v5` verwenden denselben versuchsabhängigen Artefaktnamen.
+- Runner `ubuntu-24.04` für beide Jobs; Timeouts 10 Minuten (`build`) bzw. 20 Minuten (`deploy`); Umgebung `github-pages` am `deploy`-Job.
+- `build`: Checkout `actions/checkout@v6` auf aktuellem `main`, Konfiguration `actions/configure-pages@v6`, erzeugt `_site/` und kopiert **ausschließlich `index.html`** hinein. Weder Quellcode noch `price_data.json` oder diese Übergabe werden dadurch als Pages-Dateien ausgeliefert. Sie sind jedoch als Repository-Dateien öffentlich, wenn eingecheckt.
+- `build` lädt mit `actions/upload-pages-artifact@v5` das Artefakt `github-pages-${GITHUB_RUN_ATTEMPT}` hoch und gibt den Namen als Job-Output `artifact_name` weiter.
+- `deploy` (`needs: build`) veröffentlicht dieses Artefakt über `actions/deploy-pages@v5` mit `artifact_name: ${{ needs.build.outputs.artifact_name }}`. Die Trennung in zwei Jobs verhindert Race-Conditions beim Artefakt-Lookup und erlaubt saubere „Re-run failed jobs“-Läufe.
 - `concurrency.group: github-pages`, `cancel-in-progress: true`.
 - Berechtigungen `contents: read`, `pages: write`, `id-token: write`; `environment.url` stammt aus dem Deploy-Output `page_url`.
 - Pages muss im Repository bereits für eigene GitHub-Actions-Workflows aktiviert sein. Das ist im bestehenden Projekt eingerichtet; ein neues Repository erbt diese Kontoeinstellung nicht aus Git-Dateien.
